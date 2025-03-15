@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import plotly.express as px
 from st_aggrid import AgGrid, GridOptionsBuilder
+from portfolio_classification import create_classification_charts
 
 
 
@@ -1019,9 +1020,9 @@ def monte_carlo_simulation_portfolio(aligned_returns: pd.DataFrame, weights: lis
     """
     Perform a robust Monte Carlo simulation for a multi-asset portfolio.
     
-    This function simulates each asset’s monthly returns using a multivariate normal distribution,
+    This function simulates each asset's monthly returns using a multivariate normal distribution,
     computes cumulative returns for each asset, then combines them (using the given weights) to obtain
-    the portfolio’s cumulative value.
+    the portfolio's cumulative value.
     
     Parameters:
     -----------
@@ -1038,7 +1039,7 @@ def monte_carlo_simulation_portfolio(aligned_returns: pd.DataFrame, weights: lis
     --------
     sim_df : pd.DataFrame
         A DataFrame of simulated cumulative portfolio returns. Each row is a simulation,
-        and each column corresponds to a forecast month (named "Month_1", "Month_2", …).
+        and each column corresponds to a forecast month ("Month_1", "Month_2", …).
     avg_sim : np.ndarray
         The average simulated portfolio cumulative value for each forecast month.
     extreme_indices : tuple
@@ -1618,7 +1619,7 @@ def main():
             benchmark_data = pd.DataFrame()
 
     # Main UI with tabs
-    tab1, tab2 = st.tabs(["Portfolio Analysis", "Individual Asset Metrics"])
+    tab1, tab2, tab3 = st.tabs(["Portfolio Analysis", "Individual Asset Metrics", "Portfolio Classification"])
     
     if all(not df.empty for df in asset_data):
         try:
@@ -1742,7 +1743,7 @@ def main():
 
                 with st.expander("Monthly Performance Table", expanded=False):
                     st.subheader("Monthly Performance Table")
-                    st.write("This table presents the monthly performance of the portfolio compared to its weighted benchmark. It provides a month-by-month breakdown of returns, allowing for direct comparison between actual portfolio performance and the benchmark’s expected performance.")
+                    st.write("This table presents the monthly performance of the portfolio compared to its weighted benchmark. It provides a month-by-month breakdown of returns, allowing for direct comparison between actual portfolio performance and the benchmark's expected performance.")
                     if not portfolio_rets.empty and not benchmark_returns.empty:
                         # Resample portfolio returns to yearly totals
                         portfolio_returns_yearly = portfolio_rets.resample('Y').apply(lambda x: (1 + x).prod() - 1)
@@ -1981,7 +1982,7 @@ def main():
 
                 with st.expander("Sharpe Optimized Portfolio Allocation", expanded=False):
                     st.write("""
-                    This section optimizes your portfolio to maximize the Sharpe Ratio, which measures how much return you get for each unit of risk. The optimization tweaks your asset weights to find the best balance between higher returns and lower volatility, assuming no short selling (all weights stay positive). The chart compares your current portfolio’s growth (blue) with this optimized version (green), showing how adjusting your allocations could potentially boost performance while keeping risk in check.
+                    This section optimizes your portfolio to maximize the Sharpe Ratio, which measures how much return you get for each unit of risk. The optimization tweaks your asset weights to find the best balance between higher returns and lower volatility, assuming no short selling (all weights stay positive). The chart compares your current portfolio's growth (blue) with this optimized version (green), showing how adjusting your allocations could potentially boost performance while keeping risk in check.
                     """)
                     if not aligned_returns.empty:
                         try:
@@ -2031,7 +2032,7 @@ def main():
                             
                 with st.expander("Drawdown-Optimized Growth (Max Calmar Ratio)", expanded=False):
                     st.write("""
-                    This optimization focuses on maximizing the Calmar Ratio, which looks at your portfolio’s annual return relative to its worst drop (maximum drawdown). It adjusts your asset weights to prioritize steady growth while minimizing big losses, without allowing short selling (all weights stay positive). The chart compares your current portfolio (blue) to this drawdown-optimized version (green), highlighting how these new weights could help protect against steep declines while still aiming for solid returns. It’s ideal if you want to sleep better during market downturns.
+                    This optimization focuses on maximizing the Calmar Ratio, which looks at your portfolio's annual return relative to its worst drop (maximum drawdown). It adjusts your asset weights to prioritize steady growth while minimizing big losses, without allowing short selling (all weights stay positive). The chart compares your current portfolio (blue) to this drawdown-optimized version (green), highlighting how these new weights could help protect against steep declines while still aiming for solid returns. It's ideal if you want to sleep better during market downturns.
                     """)
                     if not aligned_returns.empty:
                         try:
@@ -2204,6 +2205,42 @@ def main():
                                     mime="text/csv",
                                     key=f"download_annual_returns_{asset}"
                                 )
+
+            with tab3:  # Portfolio Classification
+                from portfolio_classification import create_classification_charts
+                
+                # Create dictionary of assets and their allocations
+                portfolio_allocations = {
+                    name: weight * 100 for name, weight in zip(asset_names, asset_weights)
+                }
+                
+                if portfolio_allocations:
+                    fig_type, fig_access, fig_liquidity, summary_df, classification_df = create_classification_charts(portfolio_allocations)
+                    
+                    # Display charts in columns
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.plotly_chart(fig_type, use_container_width=True)
+                        st.plotly_chart(fig_liquidity, use_container_width=True)
+                    with col2:
+                        st.plotly_chart(fig_access, use_container_width=True)
+
+                    # Display summary statistics
+                    st.subheader("Portfolio Classification Summary (%)")
+                    st.dataframe(summary_df)
+
+                    # Display detailed classification
+                    st.subheader("Detailed Asset Classification")
+                    st.dataframe(classification_df)
+
+                    # Add download button for the data
+                    csv = classification_df.to_csv(index=False)
+                    st.download_button(
+                        label="Download Portfolio Classification Data",
+                        data=csv,
+                        file_name="portfolio_classification.csv",
+                        mime="text/csv"
+                    )
 
         except Exception as e:
             st.error(f"Portfolio calculation error: {str(e)}")
