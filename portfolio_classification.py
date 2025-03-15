@@ -4,30 +4,25 @@ import plotly.express as px
 import plotly.graph_objects as go
 from typing import Dict, List, Tuple
 
-# Define the classification mapping based on the dataset
-ASSET_CLASSIFICATIONS = {
-    'US Stock ETF': ('Traditional', 'Public', 'Highly Liquid'),
-    'Corporate Bond Fund': ('Traditional', 'Public', 'Highly Liquid'),
-    'Private Equity Fund': ('Alternative', 'Private', 'Illiquid'),
-    'Real Estate Investment': ('Alternative', 'Private', 'Moderately Liquid'),
-    'Hedge Fund': ('Alternative', 'Private', 'Moderately Liquid'),
-    'Cryptocurrency': ('Alternative', 'Public', 'Highly Liquid'),
-    'Treasury Bond ETF': ('Traditional', 'Public', 'Highly Liquid'),
-    'Venture Capital Fund': ('Alternative', 'Private', 'Illiquid'),
-    'Art Collection': ('Alternative', 'Private', 'Illiquid'),
-    'Infrastructure Fund': ('Alternative', 'Private', 'Illiquid')
-}
+def extract_asset_classifications(file_path, sheet_name="Sheet1"):
+    df = pd.read_excel(file_path, sheet_name=sheet_name)
+    asset_classifications = {
+        row["Asset"]: (row["Traditional/Alternative"], row["Public/Private"], row["Liquidity"])
+        for _, row in df.iterrows()
+    }
+    
+    return asset_classifications
+
+file_path = "classified_dataset.xlsx" 
+ASSET_CLASSIFICATIONS = extract_asset_classifications(file_path)
 
 def classify_asset(asset_name: str) -> Tuple[str, str, str]:
     """
     Classify an asset based on the predefined classifications.
     Returns (traditional/alternative, public/private, liquidity level)
     """
-    # Check if asset is in our classification mapping
     if asset_name in ASSET_CLASSIFICATIONS:
         return ASSET_CLASSIFICATIONS[asset_name]
-    
-    # Default classification for unknown assets
     return ('Alternative', 'Private', 'Illiquid')
 
 def create_classification_charts(assets: Dict[str, float]):
@@ -43,8 +38,6 @@ def create_classification_charts(assets: Dict[str, float]):
         }
         for name, value in assets.items()
     ])
-
-    # Create pie charts
     fig_type = px.pie(
         df, 
         values='Allocation', 
@@ -73,7 +66,6 @@ def create_classification_charts(assets: Dict[str, float]):
         }
     )
 
-    # Create summary table
     summary_df = pd.DataFrame([
         df.groupby('Type')['Allocation'].sum(),
         df.groupby('Access')['Allocation'].sum(),
@@ -94,11 +86,9 @@ def main():
     Enter your assets and their allocations below.
     """)
 
-    # Initialize session state for assets if it doesn't exist
     if 'assets' not in st.session_state:
         st.session_state.assets = {}
 
-    # Input form
     with st.form("asset_input_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -114,7 +104,6 @@ def main():
         if submitted and asset_name and allocation:
             st.session_state.assets[asset_name] = allocation
 
-    # Display current assets
     if st.session_state.assets:
         st.subheader("Current Portfolio")
         portfolio_df = pd.DataFrame([
@@ -123,7 +112,6 @@ def main():
         ])
         st.dataframe(portfolio_df)
 
-        # Add option to remove assets
         asset_to_remove = st.selectbox(
             "Select asset to remove",
             ["None"] + list(st.session_state.assets.keys())
@@ -132,14 +120,12 @@ def main():
             del st.session_state.assets[asset_to_remove]
             st.experimental_rerun()
 
-        # Create and display charts
         total_allocation = sum(st.session_state.assets.values())
         if abs(total_allocation - 100) > 0.01:  # Allow for small floating-point differences
             st.warning(f"Total allocation ({total_allocation}%) does not equal 100%")
         
         fig_type, fig_access, fig_liquidity, summary_df, classification_df = create_classification_charts(st.session_state.assets)
 
-        # Display charts in columns
         col1, col2 = st.columns(2)
         with col1:
             st.plotly_chart(fig_type, use_container_width=True)
@@ -147,15 +133,12 @@ def main():
         with col2:
             st.plotly_chart(fig_access, use_container_width=True)
 
-        # Display summary statistics
         st.subheader("Portfolio Classification Summary (%)")
         st.dataframe(summary_df)
 
-        # Display detailed classification
         st.subheader("Detailed Asset Classification")
         st.dataframe(classification_df)
 
-        # Add download button for the data
         csv = classification_df.to_csv(index=False)
         st.download_button(
             label="Download Portfolio Classification Data",
